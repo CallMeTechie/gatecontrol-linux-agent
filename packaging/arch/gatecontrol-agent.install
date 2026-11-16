@@ -1,0 +1,14 @@
+post_install() {
+  echo "gatecontrol-agent: set up with  sudo gatecontrol-agent enroll https://<server> <code>"
+}
+
+post_upgrade() {
+  if [ -s /var/lib/gatecontrol-agent/token ]; then
+    systemctl try-restart gatecontrol-agent.service >/dev/null 2>&1 || true
+  fi
+}
+
+pre_remove() {
+  systemctl disable --now gatecontrol-agent.service >/dev/null 2>&1 || true
+  nft delete table inet gatecontrol >/dev/null 2>&1 || true
+}

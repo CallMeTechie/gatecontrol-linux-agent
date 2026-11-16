@@ -1,0 +1,71 @@
+# Release: only for a tag v* (made by hand, never by this workflow). Builds every package,
+# prepares a signed apt archive and the PKGBUILD for the AUR — as artifacts. Nothing is
+# published automatically (no GitHub release, no apt upload, no AUR push) until the
+# user decides where the archive lives.
+#
+# Secrets (names only; set them in the repository settings):
+#   APT_SIGNING_KEY         ASCII-armored private GPG key that signs the apt archive
+#   APT_SIGNING_KEY_ID      its key id / fingerprint
+#   APT_SIGNING_PASSPHRASE  its passphrase (empty when the key has none)
+# Without APT_SIGNING_KEY the apt archive step is skipped.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race -count=1 ./...
+      - run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.45.0
+      - name: Packages
+        run: make packages
+      - name: SHA256SUMS
+        run: cd dist && sha256sum *.deb *.pkg.tar.zst *.rpm > SHA256SUMS
+      - name: PKGBUILD for the AUR (version of the tag)
+        run: |
+          v=$(git describe --tags --match 'v*' | sed 's/^v//')
+          mkdir -p dist/aur
+          sed "s/^pkgver=.*/pkgver=${v}/" packaging/arch/PKGBUILD > dist/aur/PKGBUILD
+          cp packaging/arch/gatecontrol-agent.install dist/aur/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/
+          if-no-files-found: error
+
+  apt-archive:
+    needs: packages
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEY: ${{ secrets.APT_SIGNING_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: packages, path: dist }
+      - name: Signed apt archive (prepared, not published)
+        if: env.HAS_KEY == 'true'
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+          APT_SIGNING_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
+        run: scripts/apt-archive.sh dist apt
+      - name: No signing key
+        if: env.HAS_KEY != 'true'
+        run: echo "APT_SIGNING_KEY is not set — apt archive skipped."
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          name: apt-archive
+          path: apt/
