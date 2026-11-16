@@ -1,0 +1,45 @@
+# Maintainer: CallMeTechie
+# AUR recipe (builds from the source tarball of a release tag). The prebuilt
+# .pkg.tar.zst of the release workflow comes from nfpm.yaml instead.
+pkgname=gatecontrol-agent
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="GateControl agent for Linux: WireGuard tunnel, SSH (tmux) and desktop shares for the plugin Fernzugriff"
+arch=('x86_64' 'aarch64' 'armv7h')
+url="https://github.com/CallMeTechie/gatecontrol-linux-agent"
+license=('LicenseRef-Proprietary')
+depends=('nftables')
+makedepends=('go')
+optdepends=('tmux: SSH sessions survive a lost connection'
+            'openssh: SSH share'
+            'wireguard-tools: the wg-quick mode'
+            'krdp: KDE Plasma desktop share'
+            'gnome-remote-desktop: GNOME desktop share')
+backup=()
+install=gatecontrol-agent.install
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "gatecontrol-linux-agent-$pkgver"
+  export CGO_ENABLED=0 GOFLAGS="-trimpath -mod=readonly -modcacherw"
+  go build -ldflags "-s -w -buildid= -X github.com/CallMeTechie/gatecontrol-linux-agent/internal/version.Version=$pkgver" \
+    -o gatecontrol-agent ./cmd/gatecontrol-agent
+}
+
+check() {
+  cd "gatecontrol-linux-agent-$pkgver"
+  go test ./...
+}
+
+package() {
+  cd "gatecontrol-linux-agent-$pkgver"
+  install -Dm755 gatecontrol-agent "$pkgdir/usr/bin/gatecontrol-agent"
+  install -Dm644 packaging/systemd/gatecontrol-agent.service "$pkgdir/usr/lib/systemd/system/gatecontrol-agent.service"
+  install -Dm644 packaging/sysusers.conf "$pkgdir/usr/lib/sysusers.d/gatecontrol-agent.conf"
+  install -Dm644 packaging/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/gatecontrol-agent.conf"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 docs/HANDBUCH.md "$pkgdir/usr/share/doc/$pkgname/HANDBUCH.md"
+  install -Dm644 docs/HANDBOOK.md "$pkgdir/usr/share/doc/$pkgname/HANDBOOK.md"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

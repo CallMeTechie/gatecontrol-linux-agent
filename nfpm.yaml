@@ -1,0 +1,73 @@
+# One recipe for all packages: nfpm package -p deb|archlinux|rpm (see Makefile and the release workflow).
+# NFPM_ARCH and VERSION come from the environment; the binary is staged in dist/stage (Makefile: pkg).
+name: gatecontrol-agent
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${VERSION}
+version_schema: semver
+release: "1"
+section: net
+priority: optional
+maintainer: CallMeTechie <noreply@callmetechie.de>
+description: |
+  GateControl agent for Linux: holds the WireGuard tunnel to a GateControl server and
+  shares SSH (with tmux) and the desktop (KRdp, GNOME Remote Desktop, wayvnc, xrdp,
+  x11vnc) through the plugin "Fernzugriff" — only with a code by default, the firewall
+  opens per session.
+vendor: CallMeTechie
+homepage: https://github.com/CallMeTechie/gatecontrol-linux-agent
+license: LicenseRef-Proprietary
+depends:
+  - nftables
+recommends:
+  - tmux
+  - openssh-server
+suggests:
+  - wireguard-tools
+overrides:
+  archlinux:
+    depends:
+      - nftables
+    recommends: []
+    suggests: []
+  rpm:
+    recommends:
+      - tmux
+      - openssh-server
+contents:
+  - src: ./dist/stage/gatecontrol-agent
+    dst: /usr/bin/gatecontrol-agent
+    file_info:
+      mode: 0755
+  - src: ./packaging/systemd/gatecontrol-agent.service
+    dst: /usr/lib/systemd/system/gatecontrol-agent.service
+    file_info:
+      mode: 0644
+  - src: ./packaging/sysusers.conf
+    dst: /usr/lib/sysusers.d/gatecontrol-agent.conf
+    file_info:
+      mode: 0644
+  - src: ./packaging/tmpfiles.conf
+    dst: /usr/lib/tmpfiles.d/gatecontrol-agent.conf
+    file_info:
+      mode: 0644
+  - src: ./README.md
+    dst: /usr/share/doc/gatecontrol-agent/README.md
+    file_info:
+      mode: 0644
+  - src: ./docs/HANDBUCH.md
+    dst: /usr/share/doc/gatecontrol-agent/HANDBUCH.md
+    file_info:
+      mode: 0644
+  - src: ./docs/HANDBOOK.md
+    dst: /usr/share/doc/gatecontrol-agent/HANDBOOK.md
+    file_info:
+      mode: 0644
+  - src: ./LICENSE
+    dst: /usr/share/licenses/gatecontrol-agent/LICENSE
+    file_info:
+      mode: 0644
+scripts:
+  postinstall: ./packaging/scripts/postinstall.sh
+  preremove: ./packaging/scripts/preremove.sh
+  postremove: ./packaging/scripts/postremove.sh

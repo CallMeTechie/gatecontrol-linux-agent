@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go vet
+        run: go vet ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.5.0
+      - name: Tests (race)
+        run: go test -race -count=1 ./...
+      - name: nftables ruleset is valid (nft -c)
+        run: |
+          sudo apt-get install -y --no-install-recommends nftables || (sudo apt-get update && sudo apt-get install -y --no-install-recommends nftables)
+          go run ./scripts/nftcheck | sudo nft -c -f -
+
+  build:
+    needs: lint-test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goarch: amd64, deb: amd64, arch: x86_64 }
+          - { goarch: arm64, deb: arm64, arch: aarch64 }
+          - { goarch: arm, deb: armhf, arch: "" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build (static)
+        run: make dist/${{ matrix.goarch }}/gatecontrol-agent
+      - name: Static binary
+        run: |
+          file dist/${{ matrix.goarch }}/gatecontrol-agent
+          file dist/${{ matrix.goarch }}/gatecontrol-agent | grep -q 'statically linked'
+      - name: nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.45.0
+      - name: Packages
+        env:
+          GOARCH_PKG: ${{ matrix.goarch }}
+        run: |
+          v=$(git describe --tags --match 'v*' 2>/dev/null | sed 's/^v//'); v=${v:-0.0.0}
+          export VERSION="$v"
+          mkdir -p dist/stage && cp "dist/$GOARCH_PKG/gatecontrol-agent" dist/stage/
+          NFPM_ARCH=${{ matrix.deb }} nfpm package -p deb -t dist/
+          if [ -n "${{ matrix.arch }}" ]; then
+            NFPM_ARCH=${{ matrix.goarch }} nfpm package -p archlinux -t dist/
+            NFPM_ARCH=${{ matrix.goarch }} nfpm package -p rpm -t dist/
+          fi
+          rm -rf dist/stage
+          ls -l dist/
+      - name: Check the .deb
+        run: |
+          deb=$(ls dist/*.deb)
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb" | grep -q './usr/lib/systemd/system/gatecontrol-agent.service'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.goarch }}
+          path: |
+            dist/*.deb
+            dist/*.pkg.tar.zst
+            dist/*.rpm
+          if-no-files-found: error
+          retention-days: 14
+
+  systemd-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: systemd-analyze verify / security
+        run: |
+          sudo install -Dm755 /bin/true /usr/bin/gatecontrol-agent
+          systemd-analyze verify packaging/systemd/gatecontrol-agent.service
+          sudo cp packaging/systemd/gatecontrol-agent.service /etc/systemd/system/
+          sudo systemctl daemon-reload
+          systemd-analyze security gatecontrol-agent.service --no-pager || true
