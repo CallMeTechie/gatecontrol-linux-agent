@@ -1,7 +1,21 @@
-# Release: only for a tag v* (made by hand, never by this workflow). Builds every package,
-# prepares a signed apt archive and the PKGBUILD for the AUR — as artifacts. Nothing is
-# published automatically (no GitHub release, no apt upload, no AUR push) until the
-# user decides where the archive lives.
+# Release: automatic on every push to main (a merged PR), never by hand.
+#
+#   decide   the first line of the head commit (squash merge: the PR title) decides:
+#            ci/docs/test/style/chore → no release (ships with the next fix/feat),
+#            chore(deps) → release, everything else (feat, fix, …) → release.
+#   test     go vet, go test -race.
+#   release  version from the file VERSION: 0.0.0 → 1.0.0 (first release), feat → minor, else patch.
+#            VERSION and CHANGELOG.md (the hand-written [Unreleased] block becomes the version) go into
+#            the commit "chore: bump version to X.Y.Z"; then make packages, SHA256SUMS, PKGBUILD for
+#            the AUR and a copy of every package under a name without the version
+#            (scripts/release-assets.sh). Only then the bump is pushed to main and tagged vX.Y.Z,
+#            and the GitHub release is created with all files. releases/latest/download/<name>
+#            therefore always gives the newest package, e.g. gatecontrol-agent_amd64.deb.
+#   apt-archive  signed apt archive from the .deb files, as an artifact only (not published).
+#
+# No loop and no double build: the bump commit is a chore (decide → no release), and pushes made
+# with GITHUB_TOKEN (commit and tag) start no workflow at all. There is no tag trigger any more;
+# tags are never set by hand.
 #
 # Secrets (names only; set them in the repository settings):
 #   APT_SIGNING_KEY         ASCII-armored private GPG key that signs the apt archive
@@ -12,47 +26,243 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
-  workflow_dispatch:
+    branches: [main]
+
+concurrency:
+  # One release run at a time: parallel runs race on the version bump push.
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
-  packages:
+  decide:
+    name: Release needed?
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - name: Check commit type
+        id: check
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # Squash merges put the PR title on the first line. ci/docs/test/style
+          # and chore commits (incl. our own "chore: bump version") land on the
+          # default branch without a release and ship with the next fix/feat.
+          # chore(deps) stays releasable: dependency updates can carry fixes.
+          FIRST_LINE=$(printf '%s\n' "$COMMIT_MSG" | head -n1)
+          if printf '%s' "$FIRST_LINE" | grep -qE '^chore\(deps(-dev)?\)!?:'; then
+            RELEASE=true
+          elif printf '%s' "$FIRST_LINE" | grep -qE '^(ci|docs|test|style|chore)(\([^)]*\))?!?:'; then
+            RELEASE=false
+          else
+            RELEASE=true
+          fi
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
+          echo "First line: $FIRST_LINE -> release=$RELEASE"
+
+  test:
+    name: Test Gate
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - run: go vet ./...
       - run: go test -race -count=1 ./...
-      - run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.45.0
-      - name: Packages
-        run: make packages
-      - name: SHA256SUMS
-        run: cd dist && sha256sum *.deb *.pkg.tar.zst *.rpm > SHA256SUMS
-      - name: PKGBUILD for the AUR (version of the tag)
+
+  release:
+    needs: [decide, test]
+    # decide skips ci/docs/test/style/chore commits, incl. our own version bump (no loop)
+    if: needs.decide.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      released: ${{ steps.check_tag.outputs.exists == 'false' }}
+    steps:
+      # The current main, not the pushed commit: runs are serialized by the
+      # concurrency group, so a run for a later merge must see the version
+      # bump the run before it pushed (else both compute the same version).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Determine version bump
+        id: bump
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
         run: |
-          v=$(git describe --tags --match 'v*' | sed 's/^v//')
-          mkdir -p dist/aur
-          sed "s/^pkgver=.*/pkgver=${v}/" packaging/arch/PKGBUILD > dist/aur/PKGBUILD
-          cp packaging/arch/gatecontrol-agent.install dist/aur/
-      - uses: actions/upload-artifact@v4
+          CURRENT=$(tr -d '[:space:]' < VERSION)
+          if ! printf '%s' "$CURRENT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::VERSION is not X.Y.Z: '$CURRENT'"
+            exit 1
+          fi
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          FIRST_LINE=$(printf '%s\n' "$COMMIT_MSG" | head -n1)
+          if [ "$CURRENT" = "0.0.0" ]; then
+            # First release: matches the CHANGELOG "Unreleased (1.0.0)".
+            MAJOR=1; MINOR=0; PATCH=0
+            BUMP="first"
+          elif printf '%s' "$FIRST_LINE" | grep -qE '^feat(\([^)]*\))?!?:'; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+            BUMP="minor"
+          else
+            PATCH=$((PATCH + 1))
+            BUMP="patch"
+          fi
+
+          NEW="${MAJOR}.${MINOR}.${PATCH}"
+          {
+            echo "current=$CURRENT"
+            echo "new=$NEW"
+            echo "bump=$BUMP"
+            echo "tag=v$NEW"
+            echo "subject=$FIRST_LINE"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version: $CURRENT → $NEW ($BUMP)"
+
+      - name: Check if tag already exists
+        id: check_tag
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          # Already released: a version bump landed after this commit (a re-run,
+          # or a later merge released it together with its own change).
+          if git log --format=%s "${GITHUB_SHA}..HEAD" | grep -q '^chore: bump version'; then
+            echo "Commit already released by a later version bump"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "Tag $TAG exists already"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update VERSION and CHANGELOG.md
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+          SUBJECT: ${{ steps.bump.outputs.subject }}
+        run: |
+          printf '%s\n' "$NEW_VERSION" > VERSION
+          # Logic in scripts/changelog-release (tested): the hand-written
+          # [Unreleased] block becomes the version, else a block from the PR title.
+          go run ./scripts/changelog-release "$NEW_VERSION" "$(date -u +%Y-%m-%d)" "$SUBJECT"
+
+      - name: Commit version bump
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add VERSION CHANGELOG.md
+          git commit -m "chore: bump version to $NEW_VERSION"
+          # Pushed only after the packages are built (step "Push version bump"),
+          # so a failed build leaves no tag without a release.
+
+      - name: Install nfpm
+        if: steps.check_tag.outputs.exists == 'false'
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.45.0
+
+      - name: Packages and release assets
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          make clean packages            # version from the file VERSION (Makefile → -ldflags, nfpm)
+          scripts/release-assets.sh "$NEW_VERSION" dist
+
+      - name: Check version in binary and packages
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          test "$(dist/amd64/gatecontrol-agent --version)" = "gatecontrol-agent $NEW_VERSION"
+          test "$(dpkg-deb -f dist/latest/gatecontrol-agent_amd64.deb Version)" = "$NEW_VERSION-1"
+          dpkg-deb --contents dist/latest/gatecontrol-agent_amd64.deb | grep -q './usr/lib/systemd/system/gatecontrol-agent.service'
+          file dist/amd64/gatecontrol-agent | grep -q 'statically linked'
+
+      - name: Push version bump and tag
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.bump.outputs.tag }}
+          NEW_VERSION: ${{ steps.bump.outputs.new }}
+        run: |
+          # Push the commit first and tag only what landed: main may have moved
+          # since the checkout (a merge right after this one). Rebase the bump
+          # onto it and try again; never leave a tag on a commit that is not on
+          # main (that tag would block the next release).
+          BUILT=$(git rev-parse 'HEAD^{tree}')
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              git tag "$TAG"
+              git push origin "refs/tags/$TAG"
+              if [ "$(git rev-parse 'HEAD^{tree}')" != "$BUILT" ]; then
+                echo "main moved during the release: rebuilding from the tagged commit"
+                make clean packages
+                scripts/release-assets.sh "$NEW_VERSION" dist
+              fi
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt), rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::Could not push the version bump to main"
+          exit 1
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.check_tag.outputs.exists == 'false'
         with:
           name: packages
           path: dist/
           if-no-files-found: error
 
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+        with:
+          tag_name: ${{ steps.bump.outputs.tag }}
+          name: gatecontrol-agent ${{ steps.bump.outputs.tag }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            dist/*.deb
+            dist/*.pkg.tar.zst
+            dist/*.rpm
+            dist/latest/*
+            dist/aur/PKGBUILD
+            dist/aur/gatecontrol-agent.install
+            dist/SHA256SUMS
+          fail_on_unmatched_files: true
+
   apt-archive:
-    needs: packages
+    needs: release
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     env:
       HAS_KEY: ${{ secrets.APT_SIGNING_KEY != '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with: { name: packages, path: dist }
       - name: Signed apt archive (prepared, not published)
         if: env.HAS_KEY == 'true'
@@ -60,11 +270,12 @@ jobs:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
           APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
           APT_SIGNING_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
+        # dist/*.deb are the versioned packages only (the copies without version are in dist/latest)
         run: scripts/apt-archive.sh dist apt
       - name: No signing key
         if: env.HAS_KEY != 'true'
         run: echo "APT_SIGNING_KEY is not set — apt archive skipped."
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: env.HAS_KEY == 'true'
         with:
           name: apt-archive

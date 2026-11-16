@@ -56,8 +56,8 @@ jobs:
         env:
           GOARCH_PKG: ${{ matrix.goarch }}
         run: |
-          v=$(git describe --tags --match 'v*' 2>/dev/null | sed 's/^v//'); v=${v:-0.0.0}
-          export VERSION="$v"
+          VERSION=$(cat VERSION)   # same source as the Makefile and the release workflow
+          export VERSION
           mkdir -p dist/stage && cp "dist/$GOARCH_PKG/gatecontrol-agent" dist/stage/
           NFPM_ARCH=${{ matrix.deb }} nfpm package -p deb -t dist/
           if [ -n "${{ matrix.arch }}" ]; then

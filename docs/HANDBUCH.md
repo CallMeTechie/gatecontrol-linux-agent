@@ -6,11 +6,17 @@ SSH im Terminal von GateControl (mit tmux) und, wenn vorhanden, der Desktop übe
 
 ## 1. Installieren
 
+Die Pakete liegen auf der Seite **[Releases](https://github.com/CallMeTechie/gatecontrol-linux-agent/releases)** (alle Versionen, mit `SHA256SUMS`).
+Die folgenden Befehle laden immer die neueste Version:
+
 | System | Befehl |
 |---|---|
-| Debian, Ubuntu, Raspberry Pi OS | `sudo apt install ./gatecontrol-agent_<version>_<arch>.deb` (`arch`: amd64, arm64, armhf) |
-| CachyOS, Arch | `sudo pacman -U gatecontrol-agent-<version>-1-x86_64.pkg.tar.zst` oder aus dem AUR (`paru -S gatecontrol-agent`, sobald veröffentlicht) |
-| Fedora, openSUSE (ohne Zusage) | `sudo dnf install ./gatecontrol-agent-<version>-1.x86_64.rpm` |
+| Debian, Ubuntu, Raspberry Pi OS | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_amd64.deb && sudo apt install ./gatecontrol-agent_amd64.deb` (statt `amd64`: `arm64` oder `armhf`, siehe `dpkg --print-architecture`) |
+| CachyOS, Arch | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_x86_64.pkg.tar.zst && sudo pacman -U gatecontrol-agent_x86_64.pkg.tar.zst` (ARM: `aarch64`) oder aus dem AUR (`paru -S gatecontrol-agent`, sobald veröffentlicht; das `PKGBUILD` liegt jedem Release bei) |
+| Fedora, openSUSE (ohne Zusage) | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_x86_64.rpm && sudo dnf install ./gatecontrol-agent_x86_64.rpm` (ARM: `aarch64`) |
+
+Eine bestimmte Version: auf der Release-Seite die Datei mit Versionsnummer nehmen, z. B.
+`gatecontrol-agent_1.0.0-1_arm64.deb`. Installiert ist: `gatecontrol-agent --version`.
 
 Das Paket legt den Benutzer `gatecontrol` an, die Verzeichnisse `/etc/gatecontrol-agent` und
 `/var/lib/gatecontrol-agent` und den Dienst `gatecontrol-agent.service` (er startet erst nach der Einrichtung).
@@ -113,8 +119,11 @@ ungültig wird.
 
 ## 9. Pakete, Paketquelle
 
-Die Pakete entstehen im Release-Workflow (nfpm). Eine signierte apt-Paketquelle und ein Ein-Befehl-Skript
-(`curl … | sudo sh`) sind vorbereitet, aber noch nicht veröffentlicht. Für RPM gibt es keine Paketquelle.
+Jeder Merge auf `main` (außer `ci`/`docs`/`test`/`style`/`chore`) erzeugt automatisch ein Release: neue Version,
+Tag `vX.Y.Z`, alle Pakete (nfpm), `SHA256SUMS`, `PKGBUILD` für das AUR, dazu je Architektur eine Kopie ohne
+Versionsnummer für die festen Links aus Abschnitt 1 (Ablauf: [RELEASE.md](RELEASE.md)).
+Eine signierte apt-Paketquelle und ein Ein-Befehl-Skript (`curl … | sudo sh`) sind vorbereitet, aber noch nicht
+veröffentlicht. Für RPM gibt es keine Paketquelle.
 
 ## 10. Fehler
 
