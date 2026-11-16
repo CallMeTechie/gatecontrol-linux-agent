@@ -1,0 +1,8 @@
+Copyright (c) 2026 CallMeTechie. All rights reserved.
+
+UNLICENSED / private — the same terms as the other GateControl repositories
+(gatecontrol, gatecontrol-gateway, gatecontrol-plugins). No licence is granted to use,
+copy, modify or distribute this software except as agreed with CallMeTechie.
+
+Third-party Go modules keep their own licences (see go.mod): wgctrl (MIT),
+vishvananda/netlink (Apache-2.0), golang.org/x/* (BSD-3-Clause).
