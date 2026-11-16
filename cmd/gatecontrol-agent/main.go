@@ -103,7 +103,7 @@ func (a *app) usage() string {
   sudo gatecontrol-agent share ssh --as KONTO [--tmux] [--install-tmux] | share ssh off
   sudo gatecontrol-agent share desktop [--kind KIND] [--port PORT] | share desktop off
   sudo gatecontrol-agent share open | share code      (ohne Code für Berechtigte / nur mit Code)
-  sudo gatecontrol-agent confirm code|ask             (wie Anfragen am Gerät bestätigt werden)
+  sudo gatecontrol-agent confirm ask|code             (Standard ask: jede Anfrage am Gerät bestätigen)
        gatecontrol-agent status [--json] | code | requests
   sudo gatecontrol-agent allow <id> [--view] | deny <id>
   sudo gatecontrol-agent wg-sync | unenroll
@@ -114,7 +114,7 @@ func (a *app) usage() string {
   sudo gatecontrol-agent share ssh --as ACCOUNT [--tmux] [--install-tmux] | share ssh off
   sudo gatecontrol-agent share desktop [--kind KIND] [--port PORT] | share desktop off
   sudo gatecontrol-agent share open | share code      (no code for permitted people / code only)
-  sudo gatecontrol-agent confirm code|ask             (how requests are confirmed at the device)
+  sudo gatecontrol-agent confirm ask|code             (default ask: confirm every request at the device)
        gatecontrol-agent status [--json] | code | requests
   sudo gatecontrol-agent allow <id> [--view] | deny <id>
   sudo gatecontrol-agent wg-sync | unenroll

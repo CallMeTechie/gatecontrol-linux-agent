@@ -365,14 +365,14 @@ func (a *app) renderStatus(s agent.Status, now time.Time) {
 		desk += " · " + a.t("gefunden: ", "found: ") + s.Desktop.Kind
 	}
 	a.line("  Desktop", desk)
-	a.line(a.t("  Bestätigung", "  Confirmation"), map[string]string{"code": a.t("der Code genügt", "the code is enough"), "ask": a.t("am Gerät (allow/deny)", "at the device (allow/deny)")}[s.Confirm])
+	a.line(a.t("  Bestätigung", "  Confirmation"), map[string]string{"code": a.t("der Code genügt (ohne Rückfrage)", "the code is enough (no question)"), "ask": a.t("am Gerät (allow/deny)", "at the device (allow/deny)")}[s.Confirm])
 	a.line(a.t("  Sitzungen", "  Sessions"), strconv.Itoa(s.Sessions))
 	if s.Code != nil {
 		left := int(s.Code.ExpiresAt.Sub(now).Minutes())
 		fmt.Fprintf(a.out, "\n  %s  %s  (%s)\n", a.t("Code:", "Code:"), spaced(s.Code.Code), a.t(fmt.Sprintf("noch %d Min., einmalig", left), fmt.Sprintf("%d min left, single use", left)))
 	}
 	for _, r := range s.Requests {
-		fmt.Fprintf(a.out, "  %s %s: %s %s (%s)\n", a.t("Anfrage", "Request"), r.ID, r.From, r.Kind, r.Mode)
+		fmt.Fprintf(a.out, "  %s %s: %s %s (%s) – sudo gatecontrol-agent allow %s\n", a.t("Anfrage", "Request"), r.ID, r.From, r.Kind, r.Mode, r.ID)
 	}
 }
 
@@ -388,6 +388,11 @@ func (a *app) code(ctx context.Context) error {
 	fmt.Fprintf(a.out, "%s\n%s\n", spaced(c.Code), a.t(
 		fmt.Sprintf("Nenne diesen Code der Person, die dir helfen soll. Er gilt noch %d Minuten und nur einmal.", left),
 		fmt.Sprintf("Give this code to the person helping you. It is valid for %d more minutes and only once.", left)))
+	var s agent.Status
+	if a.call(ctx, "status", nil, &s) == nil && s.Confirm != config.ConfirmCode {
+		fmt.Fprintln(a.out, a.t("Danach am Gerät bestätigen: sudo gatecontrol-agent allow <id> (gatecontrol-agent requests zeigt die Anfrage).",
+			"Then confirm at the device: sudo gatecontrol-agent allow <id> (gatecontrol-agent requests shows the request)."))
+	}
 	return nil
 }
 
@@ -597,7 +602,17 @@ func (a *app) confirm(ctx context.Context, args []string) error {
 		return err
 	}
 	a.chgrpService(a.store.P.AgentFile())
-	return a.call(ctx, "reload", nil, nil)
+	if err := a.call(ctx, "reload", nil, nil); err != nil {
+		return err
+	}
+	if cfg.Confirm == config.ConfirmCode {
+		fmt.Fprintln(a.errw, a.t(
+			"ACHTUNG: Ab jetzt genügt der Code. Wer ihn hat, verbindet sich ohne Rückfrage am Gerät. Nur für Geräte ohne Bildschirm, an denen niemand sitzt. Zurück: sudo gatecontrol-agent confirm ask",
+			"WARNING: From now on the code is enough. Whoever has it connects without being asked at the device. Only for devices without a screen and nobody at them. Back: sudo gatecontrol-agent confirm ask"))
+	} else {
+		fmt.Fprintln(a.out, a.t("Jede Anfrage wird am Gerät bestätigt (gatecontrol-agent requests, allow, deny).", "Every request is confirmed at the device (gatecontrol-agent requests, allow, deny)."))
+	}
+	return nil
 }
 
 // ── unenroll / wg-sync ──

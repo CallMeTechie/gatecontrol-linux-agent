@@ -54,8 +54,8 @@ const (
 
 // Confirm modes of a request at this device.
 const (
-	ConfirmCode = "code" // a redeemed code is the consent
-	ConfirmAsk  = "ask"  // `gatecontrol-agent allow|deny <id>` within 30 s
+	ConfirmAsk  = "ask"  // default: `gatecontrol-agent allow|deny <id>` within 30 s
+	ConfirmCode = "code" // only on purpose (a device without anybody at it): a redeemed code is the consent
 )
 
 // SSHShare is the SSH share of this device.
@@ -99,7 +99,7 @@ func (a *Agent) Defaults() {
 		a.ShareMode = "code"
 	}
 	if a.Confirm == "" {
-		a.Confirm = ConfirmCode
+		a.Confirm = ConfirmAsk
 	}
 	if a.SSH.Port == 0 {
 		a.SSH.Port = 22

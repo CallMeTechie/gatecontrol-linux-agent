@@ -46,8 +46,11 @@ credentials in the session; GateControl stores none.
   and when it runs out, the agent fetches a new one.
 * `sudo gatecontrol-agent share open` allows “No code for permitted people” (unless an administrator locked it);
   `share code` switches back.
-* Confirmation: default `code` – handing out the code allows exactly one session. `sudo gatecontrol-agent confirm
-  ask` makes each request wait 30 seconds for `sudo gatecontrol-agent allow <id>` (`--view`) or `deny <id>`.
+* **Confirmation at the device (default `ask`):** the code alone does not connect. Each request waits 30 seconds:
+  `gatecontrol-agent requests` shows it (so do `status` and the journal), `sudo gatecontrol-agent allow <id>` allows
+  (`--view` view only), `sudo gatecontrol-agent deny <id>` declines.
+* **Only for devices without a screen and nobody at them:** `sudo gatecontrol-agent confirm code` – the code is then
+  enough, whoever has it connects without being asked (the CLI warns). Back with `sudo gatecontrol-agent confirm ask`.
 
 ## 6. State
 
@@ -68,5 +71,4 @@ files. Also lock the device under **My devices** so its token becomes invalid.
 
 ## 9. Errors
 
-Exit codes: 0 ok, 1 usage, 2 refused by the server, 3 network, 4 not set up, 5 service not reachable. A missing
-plugin (`http_404`): install Remote access ≥ 1.6.0; until then the agent holds the VPN only.
+Exit codes:

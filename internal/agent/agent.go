@@ -505,11 +505,14 @@ func (a *Agent) onRequest(ctx context.Context, r Request) {
 		return
 	}
 	a.Log.Info("request", "id", r.RequestID, "from", r.From.Name, "kind", r.Kind, "mode", r.Mode, "via", r.Via)
-	if confirm == config.ConfirmCode {
-		// the person here handed out the code: that is the consent for this one session
-		if err := a.decide(ctx, r.RequestID, "allow", r.Mode); err != nil {
-			a.Log.Warn("request not answered", "id", r.RequestID, "code", api.CodeOf(err))
-		}
+	if confirm != config.ConfirmCode {
+		// the default: the person at the device confirms within 30 s
+		a.Log.Warn("request waits for confirmation — run: sudo gatecontrol-agent allow "+r.RequestID+" (or deny)", "from", r.From.Name, "kind", r.Kind)
+		return
+	}
+	// confirm "code", set on purpose: the person here handed out the code — the consent for this one session
+	if err := a.decide(ctx, r.RequestID, "allow", r.Mode); err != nil {
+		a.Log.Warn("request not answered", "id", r.RequestID, "code", api.CodeOf(err))
 	}
 }
 

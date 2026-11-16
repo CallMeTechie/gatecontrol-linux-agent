@@ -72,9 +72,11 @@ in der Sitzung ein; GateControl speichert sie nicht.
   Nach jeder Sitzung und nach Ablauf holt der Agent selbst einen neuen.
 * `sudo gatecontrol-agent share open` erlaubt „Ohne Code für Berechtigte“ (wenn der Admin es nicht sperrt),
   `share code` schaltet zurück.
-* Bestätigung am Gerät: Standard `code` – wer den Code weitergibt, erlaubt damit genau eine Sitzung.
-  `sudo gatecontrol-agent confirm ask` lässt jede Anfrage 30 Sekunden warten:
-  `gatecontrol-agent requests`, dann `sudo gatecontrol-agent allow <id>` (`--view` nur ansehen) oder `deny <id>`.
+* **Bestätigung am Gerät (Standard `ask`):** Der Code allein verbindet nicht. Jede Anfrage wartet 30 Sekunden auf
+  dich: `gatecontrol-agent requests` zeigt sie (auch `status` und das Journal),
+  `sudo gatecontrol-agent allow <id>` erlaubt (`--view` nur ansehen), `sudo gatecontrol-agent deny <id>` lehnt ab.
+* **Nur für Geräte ohne Bildschirm, an denen niemand sitzt:** `sudo gatecontrol-agent confirm code` – dann genügt der
+  Code, wer ihn hat, verbindet sich ohne Rückfrage (die CLI warnt). Zurück mit `sudo gatecontrol-agent confirm ask`.
 
 ## 6. Zustand
 

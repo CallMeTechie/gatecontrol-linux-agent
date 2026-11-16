@@ -23,6 +23,7 @@ sudo gatecontrol-agent share ssh --as pi --tmux
 sudo gatecontrol-agent share desktop                           # nur mit Desktop
 gatecontrol-agent status
 gatecontrol-agent code                                         # Code für die Person, die helfen soll
+sudo gatecontrol-agent allow <id>                              # die Anfrage am Gerät bestätigen (Standard)
 ```
 
 Alles Weitere: [docs/HANDBUCH.md](docs/HANDBUCH.md).
@@ -36,6 +37,7 @@ sudo gatecontrol-agent share ssh --as alice --tmux
 sudo gatecontrol-agent share desktop
 gatecontrol-agent status
 gatecontrol-agent code
+sudo gatecontrol-agent allow <id>                              # confirm the request at the device (default)
 ```
 
 More: [docs/HANDBOOK.md](docs/HANDBOOK.md).

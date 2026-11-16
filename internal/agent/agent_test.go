@@ -260,3 +260,19 @@ func TestHeartbeatErrorsDoNotPanic(t *testing.T) {
 		t.Fatal("want error")
 	}
 }
+
+func TestDefaultAsksAtTheDevice(t *testing.T) {
+	a, f, _ := setup(t, "")
+	ctx := context.Background()
+	if a.Status().Confirm != config.ConfirmAsk {
+		t.Fatalf("default confirm %q", a.Status().Confirm)
+	}
+	_ = a.register(ctx)
+	a.onRequest(ctx, Request{RequestID: "rq_d", Mode: "control", Kind: "desktop", ExpiresAt: time.Now().Add(30 * time.Second).Format(time.RFC3339)})
+	if len(f.find("POST", "host/requests/rq_d")) != 0 {
+		t.Fatal("a code alone must not connect by default")
+	}
+	if r := a.Status().Requests; len(r) != 1 || r[0].ID != "rq_d" {
+		t.Fatalf("%+v", r)
+	}
+}

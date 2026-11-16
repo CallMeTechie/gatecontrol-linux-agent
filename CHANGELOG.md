@@ -4,5 +4,6 @@
 
 * Erster Stand: `enroll` mit dem Einrichtungscode, WireGuard über netlink (oder wg-quick) nur für das VPN-Netz,
   Anmeldung beim Plugin Fernzugriff (`host/register`, `platform: linux`), Herzschlag, Host-Schlüssel,
+  Bestätigung jeder Anfrage am Gerät (Standard `confirm ask`: `allow`/`deny`; `confirm code` nur bewusst, mit Warnung),
   tmux-Erkennung, Desktop-Erkennung (KRdp, GNOME Remote Desktop, wayvnc, xrdp, x11vnc), Codes und Anfragen,
   nftables je Sitzung, systemd-Dienst mit Härtung, Pakete `.deb`, `.pkg.tar.zst`, `.rpm` (nebenbei).

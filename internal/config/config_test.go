@@ -36,7 +36,7 @@ func TestRoundTripAndModes(t *testing.T) {
 		t.Fatalf("agent mode %v", fi.Mode().Perm())
 	}
 	b, err := s.LoadAgent()
-	if err != nil || b.Interface != "wg-gc" || b.Confirm != ConfirmCode || b.SSH.Port != 22 {
+	if err != nil || b.Interface != "wg-gc" || b.Confirm != ConfirmAsk || b.SSH.Port != 22 {
 		t.Fatalf("agent %+v %v", b, err)
 	}
 	if err := s.RemoveAll(); err != nil {
