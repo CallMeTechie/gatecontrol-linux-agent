@@ -4,7 +4,7 @@ Releases entstehen automatisch beim Merge auf `main` (`.github/workflows/release
 `[Unreleased]` wird dabei zur Version. · Releases are made automatically on a merge to `main`; the
 `[Unreleased]` section then becomes the version.
 
-## [Unreleased] · Unveröffentlicht (1.0.0)
+## [1.0.0] — 2026-11-16
 
 * Erster Stand: `enroll` mit dem Einrichtungscode, WireGuard über netlink (oder wg-quick) nur für das VPN-Netz,
   Anmeldung beim Plugin Fernzugriff (`host/register`, `platform: linux`), Herzschlag, Host-Schlüssel,
