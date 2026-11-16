@@ -2,7 +2,8 @@
 #   make build          dist/<goarch>/gatecontrol-agent for amd64, arm64, arm (armhf, GOARM=7)
 #   make test lint
 #   make packages       .deb (amd64, arm64, armhf), .pkg.tar.zst (x86_64, aarch64), .rpm (amd64, arm64) in dist/
-VERSION ?= $(shell git describe --tags --match 'v*' 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+# The version lives in the file VERSION; the release workflow raises it (never by hand).
+VERSION ?= $(shell cat VERSION 2>/dev/null)
 ifeq ($(VERSION),)
 VERSION := 0.0.0
 endif
@@ -13,7 +14,7 @@ NFPM    ?= nfpm
 .PHONY: build test lint packages clean
 build: dist/amd64/gatecontrol-agent dist/arm64/gatecontrol-agent dist/arm/gatecontrol-agent
 
-dist/%/gatecontrol-agent: $(shell find . -name '*.go' -not -path './dist/*') go.mod go.sum
+dist/%/gatecontrol-agent: $(shell find . -name '*.go' -not -path './dist/*') go.mod go.sum VERSION
 	CGO_ENABLED=0 GOOS=linux GOARCH=$* GOARM=7 go build -trimpath -ldflags '$(LDFLAGS)' -o $@ ./cmd/gatecontrol-agent
 
 test:

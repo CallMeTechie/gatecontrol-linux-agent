@@ -6,11 +6,18 @@ SSH in GateControl's terminal (with tmux) and, when there is one, the desktop ov
 
 ## 1. Install
 
+The packages are on the **[Releases](https://github.com/CallMeTechie/gatecontrol-linux-agent/releases)** page (every version, with `SHA256SUMS`).
+These commands always fetch the newest version:
+
 | System | Command |
 |---|---|
-| Debian, Ubuntu, Raspberry Pi OS | `sudo apt install ./gatecontrol-agent_<version>_<arch>.deb` (`arch`: amd64, arm64, armhf) |
-| CachyOS, Arch | `sudo pacman -U gatecontrol-agent-<version>-1-x86_64.pkg.tar.zst` or from the AUR (`paru -S gatecontrol-agent`, once published) |
-| Fedora, openSUSE (no promise) | `sudo dnf install ./gatecontrol-agent-<version>-1.x86_64.rpm` |
+| Debian, Ubuntu, Raspberry Pi OS | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_amd64.deb && sudo apt install ./gatecontrol-agent_amd64.deb` (instead of `amd64`: `arm64` or `armhf`, see `dpkg --print-architecture`) |
+| CachyOS, Arch | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_x86_64.pkg.tar.zst && sudo pacman -U gatecontrol-agent_x86_64.pkg.tar.zst` (ARM: `aarch64`) or from the AUR (`paru -S gatecontrol-agent`, once published; every release carries the `PKGBUILD`) |
+| Fedora, openSUSE (no promise) | `curl -LO https://github.com/CallMeTechie/gatecontrol-linux-agent/releases/latest/download/gatecontrol-agent_x86_64.rpm && sudo dnf install ./gatecontrol-agent_x86_64.rpm` (ARM: `aarch64`) |
+
+A specific version: take the file with the version number from the releases page, e.g.
+`gatecontrol-agent_1.0.0-1_arm64.deb`. Installed version: `gatecontrol-agent --version`.
+Releases are made automatically on every merge to `main` ([RELEASE.md](RELEASE.md)).
 
 The package creates the account `gatecontrol`, the directories `/etc/gatecontrol-agent` and
 `/var/lib/gatecontrol-agent` and the service `gatecontrol-agent.service` (it starts after the set-up).
